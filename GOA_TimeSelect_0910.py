@@ -34,7 +34,7 @@ def arr_apend(channel):
 
 def select(Time,channel,th):
     Time_select=[]
-    Max_amp=heapq.nlargest(1800,channel)
+    Max_amp=heapq.nlargest(9000,channel)
     Max_avg=np.mean(Max_amp)
     range1=Max_avg*0.95 
     range2=Max_avg*1.05 
@@ -48,27 +48,28 @@ def select(Time,channel,th):
     for a,b in zip(Time_select,Time_select[1:]):
         
         # print(Time_select)
-        if (b-a)>(th*0.78) and (b-a)<(th*1.2): #+5% -20%
+        if (b-a)>(th*0.95) and (b-a)<(th*1.8): #+80% -5%
             # print("T1: ",a,"T2: ",b,"Low Period: ",b-a)
             # print("區間正常")
             return [a,b,b-a]        
 
 def amp(channel):
-    Max_amp=heapq.nlargest(1500,channel)
+    Max_amp=heapq.nlargest(9000,channel)
     min_amp=heapq.nsmallest(5, channel)
     Max_amp=np.mean(Max_amp)
     min_amp=np.mean(min_amp)
     amp=Max_amp-min_amp
-    print("max",Max_amp,"min",min_amp,"Ampltude: ",amp)
+    # print("max",Max_amp,"min",min_amp,"Ampltude: ",amp)
     if amp>12*0.95 and amp<12*1.05: #+5% -5%
-        print("振幅正常")
+        # print("振幅正常")
+        return amp
         
 def find_t3(channel):
     min_v=min(channel)
     for i,j in zip(channel,Time):
     # print(i,j) # 電壓跟時間
         if i==min_v:
-            # print("t3",j)
+            # print("T3",j)
             return j
         
 def find_t3t4(channel,Time,low_th):
@@ -80,19 +81,47 @@ def find_t3t4(channel,Time,low_th):
         if i> r2 and i<r1:
             low_time.append(j)
             # print("t3",j)
-    print("T3 T4",low_time[0],low_time[-1])
+    # print("T3 T4",low_time[0],low_time[-1])
     return low_time
+
+def falling(channel,time,a,b):
+
+    # print(a,b)
+    for i,j in zip(time,channel):
+        if i==a:
+            v1=j
+       
+        if i==b:
+            v2=j
+
+    v_10=v1-(v1-v2)*0.1
+    v_90=v1-(v1-v2)*0.9
+    print(v_10,v_90)
+    fall=[]
+    for m,n in zip(channel,time):
+        # print(m,n) # 電壓跟時間
+        if m<=v_10 and m>=v_90 and n>=a and n<=b:
+            fall.append(n)
+            # print(m,n)
+    # print(fall)
+    print(fall[0],fall[-1],fall[-1]-fall[0])
+    return fall    
+     
+      
+        
+        
 
 if __name__ == '__main__':
     
     # 開啟 CSV 檔案
-    with open('GOA out.csv', newline='') as csvfile:
+    with open('scope_519.csv', newline='') as csvfile:
     
       # 讀取 CSV 檔案內容
         rows = csv.reader(csvfile)
         df=pd.read_csv(csvfile) 
         df=df.drop(0)
         df=df.dropna(axis=0,how='any')
+        # df=df.drop(df.index[1])
     
     #前處理     
     Time=arr_apend(df['x-axis'])
@@ -102,14 +131,14 @@ if __name__ == '__main__':
     CH4=preprocess(df['EM2'])    
 
     #篩選出Low週期
-    CH1_t1t2=select(Time,CH1,0.0000145)
-    print("CH1:   ",CH1_t1t2)
-    CH2_t1t2=select(Time,CH2,0.00004705)
-    print("CH2:   ",CH2_t1t2)
-    CH3_t1t2=select(Time,CH3,0.000014)
-    print("CH3:   ",CH3_t1t2)
-    CH4_t1t2=select(Time,CH4,0.0000475)
-    print("CH4:   ",CH4_t1t2)
+    CH1_t1t2=select(Time,CH1,0.000008)#0.0000145
+    # print("CH1:   ",CH1_t1t2)
+    CH2_t1t2=select(Time,CH2,0.000043)#0.00004705
+    # print("CH2:   ",CH2_t1t2)
+    CH3_t1t2=select(Time,CH3,0.000008)#0.000014
+    # print("CH3:   ",CH3_t1t2)
+    CH4_t1t2=select(Time,CH4,0.000043)#0.0000475
+    # print("CH4:   ",CH4_t1t2)
     
     #判斷S1 EM1的t3
     CH1_t3=find_t3(CH1) #S1
@@ -117,7 +146,14 @@ if __name__ == '__main__':
     
     #判斷S2 EM2的t3 t4
     CH2_t3t4=find_t3t4(CH2,Time,-6)
-    CH4_t3t4=find_t3t4(CH4, Time,-7)
+    CH4_t3t4=find_t3t4(CH4, Time,-6)
+    
+    #判斷falling
+    CH1_fall=falling(CH1,Time,CH1_t1t2[0],CH1_t3)
+    CH2_fall=falling(CH2,Time,CH2_t1t2[0],CH2_t3t4[0])
+    CH3_fall=falling(CH3,Time,CH3_t1t2[0],CH3_t3)
+    CH4_fall=falling(CH4,Time,CH4_t1t2[0],CH4_t3t4[0])
+
       
     #判斷振幅
     amp(CH1)
@@ -129,13 +165,16 @@ if __name__ == '__main__':
     plt.plot(Time,CH2) 
     
     #Show出t1t2在訊號上的位置
-    plt.annotate(s="t1", xy=(CH2_t1t2[0],6), xytext=(-0.0001,1), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
-    plt.annotate(s="t2", xy=(CH2_t1t2[1],6), xytext=(0.0001,1), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
+    plt.annotate(s="t1", xy=(CH2_t1t2[0],6.1), xytext=(-0.0001,1), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
+    plt.annotate(s="t2", xy=(CH2_t1t2[-1],6), xytext=(0.0001,1), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
+    
     #Show出t3t4的位置
     # plt.annotate(s="t3", xy=(CH3_t3,-7.2), xytext=(-0.0001,-4), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
+    
     plt.annotate(s="t3", xy=(CH2_t3t4[0],-6.1), xytext=(-0.0001,-4), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
     plt.annotate(s="t4", xy=(CH2_t3t4[-1],-6.4), xytext=(0.0001,-4), color='r',arrowprops=dict(arrowstyle='->',connectionstyle='arc3',color='c'))
-    plt.savefig('CH2_t1t2t3t4.png')
+   
+    # plt.savefig('CH4_falling_1w.png')
     
     plt.show() #顯示繪製的圖形
     
